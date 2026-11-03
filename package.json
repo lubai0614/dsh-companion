@@ -1,0 +1,64 @@
+{
+  "name": "dsh-companion",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "角色世界：DSH 记忆 / 短约束 / 设置页（近因·长期·定时）",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lubai0614/dsh-companion.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lubai0614/dsh-companion/issues"
+  },
+  "homepage": "https://github.com/lubai0614/dsh-companion#readme",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "client.js",
+    "models",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "slots"
+      ],
+      "external": [
+        "react"
+      ]
+    }
+  },
+  "scripts": {
+    "smoke:db": "node --experimental-sqlite ../../tests/memory/smoke-db.mjs",
+    "smoke:ltm": "node --experimental-sqlite ../../tests/memory/smoke-ltm.mjs",
+    "smoke:search": "node --experimental-sqlite ../../tests/memory/smoke-search.mjs",
+    "smoke:near": "node --experimental-sqlite ../../tests/memory/smoke-near.mjs",
+    "smoke:inject": "node --experimental-sqlite ../../tests/memory/smoke-inject.mjs",
+    "smoke:sched": "node --experimental-sqlite ../../tests/sched/smoke-sched.mjs",
+    "smoke:settings": "node --experimental-sqlite ../../tests/settings/smoke-settings.mjs"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "memory",
+    "ai-companion"
+  ],
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2"
+  }
+}
