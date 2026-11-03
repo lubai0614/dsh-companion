@@ -1,4 +1,4 @@
-/** 宿主入口：数据根与库就绪；挂设置页路由；步 8A 私聊 pre-step + dc_*。 */
+/** 宿主入口：数据根与库就绪；设置页；步 8 私聊/整理挂点与 tick。 */
 import { ensureDataRoot, resolveDefaultDbPath } from './paths.js';
 import { openMemoryDb } from './db.js';
 import { registerHostChatSurface } from './host/index.js';
@@ -20,6 +20,7 @@ export {
   modelFilesPresent,
   ensureDataRoot,
   resolveLastAssembleTracePath,
+  resolveOrganizeCwd,
 } from './paths.js';
 export { MemoryDb, openMemoryDb } from './db.js';
 export { findSuccessor, resolveCurrent, listCurrentByPeer } from './resolve.js';
@@ -106,6 +107,25 @@ export {
   getPluginTickActive,
 } from './settings/index.js';
 export {
+  naturalDaysBetween,
+  listPeersWithEntries,
+  listReassessCandidates,
+  isRhythmDue,
+  isGrowthDue,
+  planScheduledReassess,
+  markReassessComplete,
+} from './reassess.js';
+export {
+  buildDigestOrganizePrompt,
+  buildPromoteOrganizePrompt,
+  buildReassessOrganizePrompt,
+  wakeOrganizeSession,
+  runDigestOrganizeWake,
+  runPromoteOrganizeWake,
+  runReassessOrganizeWake,
+} from './sched/organize-wake.js';
+export { installWakeHooks, getWakeHooks } from './sched/wake-hooks.js';
+export {
   registerHostChatSurface,
   resolveChatPeerBucket,
   normalizeQqPeerId,
@@ -117,6 +137,19 @@ export {
   handleMemorySearch,
   handleAssembleContext,
   handleAdjustWeight,
+  handleNearFragmentsList,
+  handleNearDigestWrite,
+  handleDigestComplete,
+  handleNearDigestsList,
+  handlePromoteRemember,
+  handlePromoteComplete,
+  handleReassessPlan,
+  handleReassessCandidatesList,
+  handleReassessComplete,
+  markOrganizeSession,
+  clearOrganizeSessionsForTests,
+  isOrganizeSession,
+  assertBooklet,
 } from './host/index.js';
 
 /**

@@ -65,3 +65,10 @@ export function modelFilesPresent(modelsRoot, modelId) {
 export function resolveLastAssembleTracePath() {
   return path.join(resolveDataRoot(), 'last-assemble-trace.json');
 }
+
+/** 整理专用会话工作目录：`$DSH_HOME/dsh-companion/organize` */
+export function resolveOrganizeCwd() {
+  const dir = path.join(resolveDataRoot(), 'organize');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}

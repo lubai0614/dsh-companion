@@ -48,7 +48,8 @@
     "smoke:inject": "node --experimental-sqlite ../../tests/memory/smoke-inject.mjs",
     "smoke:sched": "node --experimental-sqlite ../../tests/sched/smoke-sched.mjs",
     "smoke:settings": "node --experimental-sqlite ../../tests/settings/smoke-settings.mjs",
-    "smoke:host-chat": "node --experimental-sqlite ../../tests/host/smoke-host-chat.mjs"
+    "smoke:host-chat": "node --experimental-sqlite ../../tests/host/smoke-host-chat.mjs",
+    "smoke:host-organize": "node --experimental-sqlite ../../tests/host/smoke-host-organize.mjs"
   },
   "engines": {
     "node": ">=22.5"

@@ -1,4 +1,4 @@
-/** 注册私聊侧 dc_* 工具（步 8A；整理分册后置）。 */
+/** 注册私聊侧 dc_*（步 8A）；片段追加仅私聊，其余 shared 整理也可用。 */
 
 import {
   handleAdjustWeight,
@@ -8,18 +8,7 @@ import {
   handleMemorySearch,
   handleNearFragmentAdd,
 } from './handlers-chat.js';
-
-function jsonOutput() {
-  return {
-    schema: { type: 'object', additionalProperties: true },
-    render: (_args, value) => [
-      {
-        type: 'text',
-        text: JSON.stringify(value, null, 2),
-      },
-    ],
-  };
-}
+import { jsonOutput, withBooklet } from './tool-util.js';
 
 /**
  * @param {*} ctx
@@ -38,6 +27,8 @@ export function registerChatTools(ctx, deps) {
     const off = ctx.tools.register(def);
     if (typeof off === 'function') offs.push(off);
   };
+  const chatOnly = (handler) => withBooklet('chat', handler);
+  const shared = (handler) => withBooklet('shared', handler);
 
   reg(
     defineTool({
@@ -62,9 +53,7 @@ export function registerChatTools(ctx, deps) {
         required: ['peer_id', 'content'],
       },
       output: jsonOutput(),
-      async execute(args) {
-        return handleNearFragmentAdd(args);
-      },
+      execute: chatOnly(handleNearFragmentAdd),
     }),
   );
 
@@ -89,9 +78,7 @@ export function registerChatTools(ctx, deps) {
         required: ['peer_id', 'content', 'kind', 'weight', 'supersedes', 'change_note'],
       },
       output: jsonOutput(),
-      async execute(args) {
-        return handleCorrect(args);
-      },
+      execute: shared(handleCorrect),
     }),
   );
 
@@ -109,9 +96,7 @@ export function registerChatTools(ctx, deps) {
         required: ['peer_id'],
       },
       output: jsonOutput(),
-      async execute(args) {
-        return handleListCurrent(args);
-      },
+      execute: shared(handleListCurrent),
     }),
   );
 
@@ -129,9 +114,7 @@ export function registerChatTools(ctx, deps) {
         required: ['peer_id', 'query'],
       },
       output: jsonOutput(),
-      async execute(args) {
-        return handleMemorySearch(args);
-      },
+      execute: shared(handleMemorySearch),
     }),
   );
 
@@ -161,9 +144,7 @@ export function registerChatTools(ctx, deps) {
         required: ['peer_id'],
       },
       output: jsonOutput(),
-      async execute(args) {
-        return handleAssembleContext(args);
-      },
+      execute: shared(handleAssembleContext),
     }),
   );
 
@@ -182,9 +163,7 @@ export function registerChatTools(ctx, deps) {
         required: ['peer_id', 'id', 'weight'],
       },
       output: jsonOutput(),
-      async execute(args) {
-        return handleAdjustWeight(args);
-      },
+      execute: shared(handleAdjustWeight),
     }),
   );
 

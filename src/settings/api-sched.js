@@ -11,6 +11,7 @@ import {
   listSchedRunsPage,
   recordSchedRun,
 } from '../sched/index.js';
+import { getWakeHooks } from '../sched/wake-hooks.js';
 import { withMemoryDb } from './open-db.js';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -129,7 +130,7 @@ function writeTaskFailureResult(taskId, message, opts = {}) {
 async function executeTask(taskId, opts = {}) {
   const db = openMemoryDb({ dbPath: opts.dbPath });
   try {
-    const runner = createSchedRunner(db);
+    const runner = createSchedRunner(db, getWakeHooks() || {});
     if (taskId === 'digest') {
       const day_key = opts.day_key || runner.yesterdayKey();
       return await runner.runDigestOrganizeNow(day_key);
