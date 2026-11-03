@@ -1,6 +1,7 @@
-/** 宿主入口：数据根与库就绪；挂设置页路由。 */
+/** 宿主入口：数据根与库就绪；挂设置页路由；步 8A 私聊 pre-step + dc_*。 */
 import { ensureDataRoot, resolveDefaultDbPath } from './paths.js';
 import { openMemoryDb } from './db.js';
+import { registerHostChatSurface } from './host/index.js';
 import { registerSettingsHttp, setPluginTickActive } from './settings/index.js';
 
 export {
@@ -104,11 +105,24 @@ export {
   setPluginTickActive,
   getPluginTickActive,
 } from './settings/index.js';
+export {
+  registerHostChatSurface,
+  resolveChatPeerBucket,
+  normalizeQqPeerId,
+  extractUserQuery,
+  INJECT_SOURCE_KIND,
+  handleNearFragmentAdd,
+  handleCorrect,
+  handleListCurrent,
+  handleMemorySearch,
+  handleAssembleContext,
+  handleAdjustWeight,
+} from './host/index.js';
 
 /**
  * @param {*} ctx
  */
-export function apply(ctx) {
+export async function apply(ctx) {
   const root = ensureDataRoot();
   const dbPath = resolveDefaultDbPath();
   const db = openMemoryDb({ dbPath });
@@ -146,6 +160,15 @@ export function apply(ctx) {
     else console.warn(m);
   }
 
+  try {
+    const hostOffs = await registerHostChatSurface(ctx);
+    for (const d of hostOffs) disposers.push(d);
+  } catch (err) {
+    const m = `[dsh-companion] 宿主私聊面未挂上：${err?.message || err}`;
+    if (ctx?.logger?.warn) ctx.logger.warn(m);
+    else console.warn(m);
+  }
+
   return () => {
     setPluginTickActive(false);
     for (const d of disposers) {
@@ -159,4 +182,4 @@ export function apply(ctx) {
 }
 
 export const name = 'dsh-companion';
-export const inject = ['webServer'];
+export const inject = ['webServer', 'tools'];

@@ -19,3 +19,21 @@ export function withMemoryDb(fn, opts = {}) {
     db.close();
   }
 }
+
+/**
+ * @template T
+ * @param {(db: import('../db.js').MemoryDb) => Promise<T>} fn
+ * @param {{ readonly?: boolean, dbPath?: string }} [opts]
+ * @returns {Promise<T>}
+ */
+export async function withMemoryDbAsync(fn, opts = {}) {
+  const db = openMemoryDb({
+    dbPath: opts.dbPath,
+    readonly: Boolean(opts.readonly),
+  });
+  try {
+    return await fn(db);
+  } finally {
+    db.close();
+  }
+}
