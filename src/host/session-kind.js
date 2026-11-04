@@ -1,49 +1,49 @@
 /**
- * 整理会话识别：叫醒时登记 sessionId；标题/cwd 作回落。
+ * 控制台会话识别：叫醒时登记 sessionId；标题/cwd 作回落。
  * 分册拒绝靠此判定（细节稿 §7.5）。
  */
 
-const TITLE_PREFIX = '角色世界·整理';
+const TITLE_PREFIX = '角色世界·控制台';
 
 /** @type {Set<string>} */
-const organizeSessionIds = new Set();
+const consoleSessionIds = new Set();
 
-export function getOrganizeTitlePrefix() {
+export function getConsoleTitlePrefix() {
   return TITLE_PREFIX;
 }
 
 /** @param {string} sessionId */
-export function markOrganizeSession(sessionId) {
+export function markConsoleSession(sessionId) {
   const id = String(sessionId || '').trim();
-  if (id) organizeSessionIds.add(id);
+  if (id) consoleSessionIds.add(id);
 }
 
 /** @param {string} sessionId */
-export function unmarkOrganizeSession(sessionId) {
-  organizeSessionIds.delete(String(sessionId || '').trim());
+export function unmarkConsoleSession(sessionId) {
+  consoleSessionIds.delete(String(sessionId || '').trim());
 }
 
-export function clearOrganizeSessionsForTests() {
-  organizeSessionIds.clear();
+export function clearConsoleSessionsForTests() {
+  consoleSessionIds.clear();
 }
 
 /**
  * @param {object} [session]
- * @param {string} [organizeCwd]
+ * @param {string} [consoleCwd]
  */
-export function isOrganizeSession(session, organizeCwd) {
+export function isConsoleSession(session, consoleCwd) {
   if (!session) return false;
   const id = String(session.id || session.sessionId || '').trim();
-  if (id && organizeSessionIds.has(id)) return true;
+  if (id && consoleSessionIds.has(id)) return true;
 
   const title = String(session.title || session.name || '');
   if (title.startsWith(TITLE_PREFIX)) return true;
 
   const cwd = String(session.cwd || session.workingDirectory || '');
-  if (organizeCwd && cwd) {
+  if (consoleCwd && cwd) {
     const norm = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-    if (norm(cwd) === norm(organizeCwd) || norm(cwd).endsWith('/organize')) return true;
-  } else if (cwd.replace(/\\/g, '/').toLowerCase().endsWith('/organize')) {
+    if (norm(cwd) === norm(consoleCwd) || norm(cwd).endsWith('/console')) return true;
+  } else if (cwd.replace(/\\/g, '/').toLowerCase().endsWith('/console')) {
     return true;
   }
   return false;
@@ -58,17 +58,17 @@ export function sessionFromExec(exec) {
 }
 
 /**
- * @param {'chat'|'organize'|'shared'} booklet
+ * @param {'chat'|'console'|'shared'} booklet
  * @param {object} [exec]
- * @param {string} [organizeCwd]
+ * @param {string} [consoleCwd]
  */
-export function assertBooklet(booklet, exec, organizeCwd) {
+export function assertBooklet(booklet, exec, consoleCwd) {
   if (booklet === 'shared') return;
-  const organize = isOrganizeSession(sessionFromExec(exec), organizeCwd);
-  if (booklet === 'organize' && !organize) {
-    throw new Error('此工具仅整理会话可用（日摘/晋升/再评估专用回合）');
+  const isConsole = isConsoleSession(sessionFromExec(exec), consoleCwd);
+  if (booklet === 'console' && !isConsole) {
+    throw new Error('此工具仅控制台会话可用（日摘/晋升/再评估）');
   }
-  if (booklet === 'chat' && organize) {
-    throw new Error('整理会话不可用此私聊工具；请用整理分册工具');
+  if (booklet === 'chat' && isConsole) {
+    throw new Error('控制台会话不可用此私聊工具；请用控制台分册工具');
   }
 }

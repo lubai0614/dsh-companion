@@ -1,16 +1,16 @@
-/**
+﻿/**
  * 宿主进程内调度 tick + 接线真叫醒（步 8B）。
  * 会话控制器在叫醒时再取：apply 瞬间 fiber 可能尚未 active。
  */
 
 import { openMemoryDb } from '../db.js';
-import { resolveDefaultDbPath, resolveOrganizeCwd } from '../paths.js';
+import { resolveDefaultDbPath, resolveConsoleCwd } from '../paths.js';
 import { createSchedRunner } from '../sched/runner.js';
 import {
-  runDigestOrganizeWake,
-  runPromoteOrganizeWake,
-  runReassessOrganizeWake,
-} from '../sched/organize-wake.js';
+  runDigestConsoleWake,
+  runPromoteConsoleWake,
+  runReassessConsoleWake,
+} from '../sched/console-wake.js';
 import { installWakeHooks } from '../sched/wake-hooks.js';
 import { setPluginTickActive } from '../settings/api-sched.js';
 
@@ -65,10 +65,10 @@ export function registerSchedTick(ctx) {
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
-        return await runDigestOrganizeWake(db, {
+        return await runDigestConsoleWake(db, {
           day_key,
           sessionController,
-          cwd: resolveOrganizeCwd(),
+          cwd: resolveConsoleCwd(),
         });
       } finally {
         db.close();
@@ -85,10 +85,10 @@ export function registerSchedTick(ctx) {
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
-        return await runPromoteOrganizeWake(db, {
+        return await runPromoteConsoleWake(db, {
           as_of_day,
           sessionController,
-          cwd: resolveOrganizeCwd(),
+          cwd: resolveConsoleCwd(),
         });
       } finally {
         db.close();
@@ -105,11 +105,11 @@ export function registerSchedTick(ctx) {
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
-        return await runReassessOrganizeWake(db, {
+        return await runReassessConsoleWake(db, {
           trigger,
           now,
           sessionController,
-          cwd: resolveOrganizeCwd(),
+          cwd: resolveConsoleCwd(),
         });
       } finally {
         db.close();
@@ -125,7 +125,7 @@ export function registerSchedTick(ctx) {
       '[dsh-companion] 此刻尚无 sessionController；将在每次叫醒时重试（勿当作永久失败）',
     );
   } else {
-    logInfo('[dsh-companion] sessionController 已可见，叫醒可建整理会话');
+    logInfo('[dsh-companion] sessionController 已可见，叫醒可用控制台会话');
   }
 
   const intervalFn =

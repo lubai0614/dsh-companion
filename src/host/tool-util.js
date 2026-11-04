@@ -1,6 +1,6 @@
-/** 工具注册共用：JSON 输出 + 分册守卫。 */
+﻿/** 工具注册共用：JSON 输出 + 分册守卫。 */
 
-import { resolveOrganizeCwd } from '../paths.js';
+import { resolveConsoleCwd } from '../paths.js';
 import { assertBooklet } from './session-kind.js';
 
 export function jsonOutput() {
@@ -16,13 +16,13 @@ export function jsonOutput() {
 }
 
 /**
- * @param {'chat'|'organize'|'shared'} booklet
+ * @param {'chat'|'console'|'shared'} booklet
  * @param {(args: object, exec?: object) => any} handler
  */
 export function withBooklet(booklet, handler) {
   return async (args, exec) => {
     try {
-      assertBooklet(booklet, exec, resolveOrganizeCwd());
+      assertBooklet(booklet, exec, resolveConsoleCwd());
     } catch (err) {
       return { ok: false, error: String(err?.message || err) };
     }

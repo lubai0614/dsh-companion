@@ -37,7 +37,7 @@ export function summarizeSchedOutcome(out) {
     return pack('woken', '整理中', `取材日摘 ${n} 条`);
   }
   if (out.woken === true) {
-    return pack('woken', '整理中', '已投递整理会话');
+    return pack('woken', '整理中', '已投递控制台任务');
   }
   return pack('ran', '已完成', '已触发');
 }

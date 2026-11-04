@@ -1,4 +1,4 @@
-/** 注册整理侧专用 dc_*（步 8B）。共用工具沿用私聊册 shared 注册。 */
+/** 注册控制台侧专用 dc_*（步 8B）。共用工具沿用私聊册 shared 注册。 */
 
 import {
   handleDigestComplete,
@@ -10,7 +10,7 @@ import {
   handleReassessCandidatesList,
   handleReassessComplete,
   handleReassessPlan,
-} from './handlers-organize.js';
+} from './handlers-console.js';
 import { jsonOutput, withBooklet } from './tool-util.js';
 
 /**
@@ -18,7 +18,7 @@ import { jsonOutput, withBooklet } from './tool-util.js';
  * @param {{ defineTool: Function }} deps
  * @returns {Array<() => void>}
  */
-export function registerOrganizeTools(ctx, deps) {
+export function registerConsoleTools(ctx, deps) {
   const { defineTool } = deps;
   if (!ctx?.tools || typeof ctx.tools.register !== 'function') {
     throw new Error('ctx.tools.register 不可用');
@@ -30,7 +30,7 @@ export function registerOrganizeTools(ctx, deps) {
     const off = ctx.tools.register(def);
     if (typeof off === 'function') offs.push(off);
   };
-  const org = (handler) => withBooklet('organize', handler);
+  const consoleOnly = (handler) => withBooklet('console', handler);
 
   reg(
     defineTool({
@@ -47,7 +47,7 @@ export function registerOrganizeTools(ctx, deps) {
         required: ['peer_id', 'day_key'],
       },
       output: jsonOutput(),
-      execute: org(handleNearFragmentsList),
+      execute: consoleOnly(handleNearFragmentsList),
     }),
   );
 
@@ -68,7 +68,7 @@ export function registerOrganizeTools(ctx, deps) {
         required: ['peer_id', 'day_key', 'content'],
       },
       output: jsonOutput(),
-      execute: org(handleNearDigestWrite),
+      execute: consoleOnly(handleNearDigestWrite),
     }),
   );
 
@@ -86,7 +86,7 @@ export function registerOrganizeTools(ctx, deps) {
         },
       },
       output: jsonOutput(),
-      execute: org(handleDigestComplete),
+      execute: consoleOnly(handleDigestComplete),
     }),
   );
 
@@ -105,7 +105,7 @@ export function registerOrganizeTools(ctx, deps) {
         required: ['as_of_day'],
       },
       output: jsonOutput(),
-      execute: org(handleNearDigestsList),
+      execute: consoleOnly(handleNearDigestsList),
     }),
   );
 
@@ -128,7 +128,7 @@ export function registerOrganizeTools(ctx, deps) {
         required: ['peer_id', 'content', 'kind', 'weight'],
       },
       output: jsonOutput(),
-      execute: org(handlePromoteRemember),
+      execute: consoleOnly(handlePromoteRemember),
     }),
   );
 
@@ -145,7 +145,7 @@ export function registerOrganizeTools(ctx, deps) {
         },
       },
       output: jsonOutput(),
-      execute: org(handlePromoteComplete),
+      execute: consoleOnly(handlePromoteComplete),
     }),
   );
 
@@ -162,7 +162,7 @@ export function registerOrganizeTools(ctx, deps) {
         },
       },
       output: jsonOutput(),
-      execute: org(handleReassessPlan),
+      execute: consoleOnly(handleReassessPlan),
     }),
   );
 
@@ -181,7 +181,7 @@ export function registerOrganizeTools(ctx, deps) {
         required: ['peer_id'],
       },
       output: jsonOutput(),
-      execute: org(handleReassessCandidatesList),
+      execute: consoleOnly(handleReassessCandidatesList),
     }),
   );
 
@@ -199,7 +199,7 @@ export function registerOrganizeTools(ctx, deps) {
         required: ['kind'],
       },
       output: jsonOutput(),
-      execute: org(handleReassessComplete),
+      execute: consoleOnly(handleReassessComplete),
     }),
   );
 

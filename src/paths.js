@@ -66,9 +66,14 @@ export function resolveLastAssembleTracePath() {
   return path.join(resolveDataRoot(), 'last-assemble-trace.json');
 }
 
-/** 整理专用会话工作目录：`$DSH_HOME/dsh-companion/organize` */
-export function resolveOrganizeCwd() {
-  const dir = path.join(resolveDataRoot(), 'organize');
+/** 控制台专用会话工作目录：`$DSH_HOME/dsh-companion/console` */
+export function resolveConsoleCwd() {
+  const dir = path.join(resolveDataRoot(), 'console');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/** 固定控制台会话 id 落盘：`$DSH_HOME/dsh-companion/console-session.json` */
+export function resolveConsoleSessionStatePath() {
+  return path.join(resolveDataRoot(), 'console-session.json');
 }

@@ -280,7 +280,7 @@ export function finalizeSchedRun(db, opts) {
  * @param {import('../db.js').MemoryDb} db
  */
 export function abandonOpenOrganizeRuns(db, reason) {
-  const detail = String(reason || '整理会话未收尾，已人工解除').trim();
+  const detail = String(reason || '控制台任务未收尾，已人工解除').trim();
   const open = listOpenOrganizeRuns(db);
   /** @type {object[]} */
   const closed = [];

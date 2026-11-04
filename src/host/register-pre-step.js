@@ -1,12 +1,27 @@
-/**
- * 相处每轮自动装配：agent/pre-step → assembleContext → 带来源标注的 UserMessage。
- * 对齐宿主 time-context：先 next()，再追加；仅 turn 的 step===1。
+﻿/**
+ * 每轮自动装配：agent/pre-step → assembleContext → 带来源标注的 UserMessage。
+ * 私聊：解析 QQ peer；控制台：从任务文案取 peer_id，否则只注入短约束。
  */
 
 import { assembleContext } from '../inject.js';
+import { SHORT_CONSTRAINTS_TEXT } from '../short-constraints.js';
 import { withMemoryDbAsync } from '../settings/open-db.js';
+import { resolveConsoleCwd } from '../paths.js';
 import { resolveChatPeerBucket } from './peer.js';
 import { INJECT_SOURCE_KIND, extractUserQuery } from './query.js';
+import { isConsoleSession } from './session-kind.js';
+
+/**
+ * @param {string} text
+ * @returns {{ platform: string, peer_id: string }|null}
+ */
+function peerFromConsolePrompt(text) {
+  const m = String(text || '').match(/peer_id\s*=\s*([^\s）\],，；;]+)/i);
+  if (!m) return null;
+  const peer_id = String(m[1] || '').trim();
+  if (!peer_id) return null;
+  return { platform: 'qq', peer_id };
+}
 
 /**
  * @param {*} ctx
@@ -29,9 +44,31 @@ export function registerPreStepAssemble(ctx, deps) {
       if (!decision || decision.kind === 'reject' || signal?.aborted) return decision;
       if (step !== 1) return decision;
 
-      const bucket = resolveChatPeerBucket(agent);
+      const incoming = Array.isArray(messages) ? messages : [];
+      const decided = Array.isArray(decision.messages) ? decision.messages : [];
+      const query = extractUserQuery([...incoming, ...decided]);
+      if (!query) return decision;
+
+      const sess = agent?.session;
+      const consoleSession = isConsoleSession(sess, resolveConsoleCwd());
+      let bucket = resolveChatPeerBucket(agent);
+      if (!bucket && consoleSession) {
+        bucket = peerFromConsolePrompt(query);
+      }
+
       if (!bucket) {
-        const sess = agent?.session;
+        if (consoleSession) {
+          // 控制台无 peer 时仍注入短约束，保证同一个人底板
+          const injected = createUserMessage({
+            content: [{ type: 'text', text: SHORT_CONSTRAINTS_TEXT }],
+            source: {
+              kind: INJECT_SOURCE_KIND,
+              form: 'snapshot',
+              sections: [{ name: INJECT_SOURCE_KIND, text: SHORT_CONSTRAINTS_TEXT }],
+            },
+          });
+          return { ...decision, messages: [...decided, injected] };
+        }
         if (sess && warnedNoPeer && !warnedNoPeer.has(sess)) {
           warnedNoPeer.add(sess);
           const m =
@@ -41,11 +78,6 @@ export function registerPreStepAssemble(ctx, deps) {
         }
         return decision;
       }
-
-      const incoming = Array.isArray(messages) ? messages : [];
-      const decided = Array.isArray(decision.messages) ? decision.messages : [];
-      const query = extractUserQuery([...incoming, ...decided]);
-      if (!query) return decision;
 
       try {
         const assembled = await withMemoryDbAsync((db) =>

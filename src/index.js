@@ -1,4 +1,4 @@
-/** 宿主入口：数据根与库就绪；设置页；步 8 私聊/整理挂点与 tick。 */
+/** 宿主入口：数据根与库就绪；设置页；步 8 私聊/控制台挂点与 tick。 */
 import { ensureDataRoot, resolveDefaultDbPath } from './paths.js';
 import { openMemoryDb } from './db.js';
 import { registerHostChatSurface } from './host/index.js';
@@ -20,7 +20,7 @@ export {
   modelFilesPresent,
   ensureDataRoot,
   resolveLastAssembleTracePath,
-  resolveOrganizeCwd,
+  resolveConsoleCwd,
 } from './paths.js';
 export { MemoryDb, openMemoryDb } from './db.js';
 export { findSuccessor, resolveCurrent, listCurrentByPeer } from './resolve.js';
@@ -116,14 +116,14 @@ export {
   markReassessComplete,
 } from './reassess.js';
 export {
-  buildDigestOrganizePrompt,
-  buildPromoteOrganizePrompt,
-  buildReassessOrganizePrompt,
-  wakeOrganizeSession,
-  runDigestOrganizeWake,
-  runPromoteOrganizeWake,
-  runReassessOrganizeWake,
-} from './sched/organize-wake.js';
+  buildDigestConsolePrompt,
+  buildPromoteConsolePrompt,
+  buildReassessConsolePrompt,
+  wakeConsoleSession,
+  runDigestConsoleWake,
+  runPromoteConsoleWake,
+  runReassessConsoleWake,
+} from './sched/console-wake.js';
 export { installWakeHooks, getWakeHooks } from './sched/wake-hooks.js';
 export {
   registerHostChatSurface,
@@ -146,9 +146,9 @@ export {
   handleReassessPlan,
   handleReassessCandidatesList,
   handleReassessComplete,
-  markOrganizeSession,
-  clearOrganizeSessionsForTests,
-  isOrganizeSession,
+  markConsoleSession,
+  clearConsoleSessionsForTests,
+  isConsoleSession,
   assertBooklet,
 } from './host/index.js';
 
@@ -215,5 +215,5 @@ export async function apply(ctx) {
 }
 
 export const name = 'dsh-companion';
-/** 叫醒建整理会话依赖 sessionController；仍在叫醒时再 get 一次以防时序。 */
+/** 叫醒控制台会话依赖 sessionController；仍在叫醒时再 get 一次以防时序。 */
 export const inject = ['webServer', 'tools', 'sessionController'];

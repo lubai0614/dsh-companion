@@ -1,22 +1,28 @@
-/** 步 8：私聊 pre-step + dc_*；整理分册 + tick（8B）。 */
+﻿/** 步 8：私聊 pre-step + dc_*；控制台分册 + tick（8B）。 */
 
 import { loadHostDeps } from './deps.js';
 import { registerPreStepAssemble } from './register-pre-step.js';
 import { registerChatTools } from './register-tools-chat.js';
-import { registerOrganizeTools } from './register-tools-organize.js';
+import { registerConsoleTools } from './register-tools-console.js';
 import { registerSchedTick } from './register-tick.js';
 
 export { loadHostDeps } from './deps.js';
 export { resolveChatPeerBucket, normalizeQqPeerId } from './peer.js';
 export { extractUserQuery, INJECT_SOURCE_KIND } from './query.js';
 export * from './handlers-chat.js';
-export * from './handlers-organize.js';
+export * from './handlers-console.js';
 export {
-  markOrganizeSession,
-  clearOrganizeSessionsForTests,
-  isOrganizeSession,
+  markConsoleSession,
+  clearConsoleSessionsForTests,
+  isConsoleSession,
   assertBooklet,
 } from './session-kind.js';
+export {
+  getStoredConsoleSessionId,
+  storeConsoleSessionId,
+  useConsoleSessionMemoryOnlyForTests,
+  resetConsoleSessionStateForTests,
+} from './console-session-state.js';
 export { resolveSessionController, registerSchedTick } from './register-tick.js';
 
 /**
@@ -61,12 +67,12 @@ export async function registerHostChatSurface(ctx) {
   }
 
   try {
-    const offs = registerOrganizeTools(ctx, { defineTool: deps.defineTool });
+    const offs = registerConsoleTools(ctx, { defineTool: deps.defineTool });
     disposers.push(...offs);
-    if (logger?.info) logger.info('[dsh-companion] 已注册整理工具 dc_*');
-    else console.info('[dsh-companion] 已注册整理工具 dc_*');
+    if (logger?.info) logger.info('[dsh-companion] 已注册控制台工具 dc_*');
+    else console.info('[dsh-companion] 已注册控制台工具 dc_*');
   } catch (err) {
-    const m = `[dsh-companion] 整理工具未挂上：${err?.message || err}`;
+    const m = `[dsh-companion] 控制台工具未挂上：${err?.message || err}`;
     if (logger?.warn) logger.warn(m);
     else console.warn(m);
   }

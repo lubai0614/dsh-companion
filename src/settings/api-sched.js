@@ -267,7 +267,7 @@ export function readSchedStatusPayload(opts = {}) {
 export function abandonSchedOrganizePayload(opts = {}) {
   return withMemoryDb(
     (db) => {
-      const out = abandonOpenOrganizeRuns(db, '整理会话未收尾，已人工解除');
+      const out = abandonOpenOrganizeRuns(db, '控制台任务未收尾，已人工解除');
       return {
         ok: true,
         closed_count: out.closed_count,

@@ -1,17 +1,45 @@
-/**
- * 整理叫醒：同进程建专用会话并投递任务说明（细节稿 §5.2 / §7.5）。
- * 不等整轮结束；收尾靠 dc_*_complete。
+﻿/**
+ * 控制台叫醒：固定会话复用 + 投递任务说明（细案 03 §三 / 细节 §7.5）。
+ * 手动启动与到点自动同一路径。不等整轮结束；收尾靠 dc_*_complete。
  */
 
+import { randomUUID } from 'node:crypto';
 import { listDigestJobsForDay, listDigestsForPromote } from '../near.js';
 import { planScheduledReassess } from '../reassess.js';
-import { resolveOrganizeCwd } from '../paths.js';
+import { resolveConsoleCwd } from '../paths.js';
 import {
-  getOrganizeTitlePrefix,
-  markOrganizeSession,
+  getStoredConsoleSessionId,
+  storeConsoleSessionId,
+} from '../host/console-session-state.js';
+import {
+  getConsoleTitlePrefix,
+  markConsoleSession,
 } from '../host/session-kind.js';
 
-export function buildDigestOrganizePrompt(opts) {
+function extractSessionId(created) {
+  return (
+    created?.sessionId ||
+    created?.session?.sessionId ||
+    created?.session?.id ||
+    created?.id ||
+    null
+  );
+}
+
+function formatWakeError(err) {
+  const msg = String(err?.message || err);
+  const reason =
+    err?.details?.reason ||
+    err?.data?.reason ||
+    err?.cause?.message ||
+    err?.cause;
+  if (reason != null && String(reason).trim()) {
+    return `${msg}（${String(reason).trim()}）`;
+  }
+  return msg;
+}
+
+export function buildDigestConsolePrompt(opts) {
   const day_key = String(opts.day_key).trim();
   const jobs = Array.isArray(opts.jobs) ? opts.jobs : [];
   const lines = jobs.map(
@@ -19,7 +47,7 @@ export function buildDigestOrganizePrompt(opts) {
       `- peer_id=${j.peer_id} 摘记条数=${j.fragment_count}${j.existing_digest ? '（已有当日小结，可覆盖）' : ''}`,
   );
   return [
-    '【整理任务·当日小结】这是后台整理回合，不是 QQ 私聊。请勿向 QQ 发送任何内容；勿对用户念工具名或实现层名词。',
+    '【整理任务·当日小结】这是控制台整理回合，不是 QQ 私聊。请勿向 QQ 发送任何内容；勿对用户念工具名或实现层名词。',
     `目标自然日 day_key=${day_key}。`,
     '原料只来自记忆库里的相处摘记，不要假设能读 QQ 聊天原文。',
     '待处理分桶：',
@@ -32,14 +60,14 @@ export function buildDigestOrganizePrompt(opts) {
   ].join('\n');
 }
 
-export function buildPromoteOrganizePrompt(opts) {
+export function buildPromoteConsolePrompt(opts) {
   const as_of_day = String(opts.as_of_day).trim();
   const digests = Array.isArray(opts.digests) ? opts.digests : [];
   const lines = digests.map(
     (d) => `- peer_id=${d.peer_id} day_key=${d.day_key} digest_id=${d.id}`,
   );
   return [
-    '【整理任务·升入正式记得】这是后台整理回合，不是 QQ 私聊。请勿向 QQ 发送任何内容；勿对用户念工具名。',
+    '【整理任务·升入正式记得】这是控制台整理回合，不是 QQ 私聊。请勿向 QQ 发送任何内容；勿对用户念工具名。',
     `取材截止日 as_of_day=${as_of_day}。只吃日摘，不读 QQ 原文。`,
     '待处理日摘：',
     ...(lines.length ? lines : ['（无日摘）']),
@@ -51,7 +79,7 @@ export function buildPromoteOrganizePrompt(opts) {
   ].join('\n');
 }
 
-export function buildReassessOrganizePrompt(opts) {
+export function buildReassessConsolePrompt(opts) {
   const plan = opts.plan || {};
   const reason = plan.task_reason;
   const peers = Array.isArray(plan.peers) ? plan.peers : [];
@@ -59,7 +87,7 @@ export function buildReassessOrganizePrompt(opts) {
     (p) => `- peer_id=${p.peer_id} 候选约 ${p.candidate_count} 条`,
   );
   return [
-    '【整理任务·再评轻重】这是后台整理回合，不是 QQ 私聊。请勿向 QQ 发送任何内容；勿对用户念工具名。',
+    '【整理任务·再评轻重】这是控制台整理回合，不是 QQ 私聊。请勿向 QQ 发送任何内容；勿对用户念工具名。',
     `本轮任务 task_reason=${reason}（只开这一项，禁止顺带推进另一项）。`,
     '目标分桶：',
     ...(lines.length ? lines : ['（无目标）']),
@@ -79,7 +107,7 @@ export function buildReassessOrganizePrompt(opts) {
  * @param {string} [opts.agentPreset]
  * @param {AbortSignal} [opts.signal] 投递受理前的取消令牌；缺省用新的未中止 signal
  */
-export async function wakeOrganizeSession(opts) {
+export async function wakeConsoleSession(opts) {
   const sessionController = opts.sessionController;
   if (!sessionController || typeof sessionController.create !== 'function') {
     throw new Error('sessionController.create 不可用');
@@ -87,23 +115,27 @@ export async function wakeOrganizeSession(opts) {
   const promptText = String(opts.promptText ?? '').trim();
   if (!promptText) throw new Error('promptText required');
 
-  const cwd = opts.cwd || resolveOrganizeCwd();
-  const created = await sessionController.create({
-    cwd,
-    ...(opts.agentPreset ? { agentPreset: opts.agentPreset } : {}),
-  });
-  const sessionId =
-    created?.sessionId ||
-    created?.session?.sessionId ||
-    created?.session?.id ||
-    created?.id;
+  const cwd = opts.cwd || resolveConsoleCwd();
+  const storedId = getStoredConsoleSessionId();
+  let created;
+  try {
+    created = await sessionController.create({
+      cwd,
+      ...(storedId ? { sessionId: storedId } : {}),
+      ...(opts.agentPreset ? { agentPreset: opts.agentPreset } : {}),
+    });
+  } catch (err) {
+    throw new Error(formatWakeError(err));
+  }
+  const sessionId = extractSessionId(created);
   if (!sessionId) throw new Error('session/create missing sessionId');
 
-  markOrganizeSession(sessionId);
+  storeConsoleSessionId(sessionId);
+  markConsoleSession(sessionId);
 
   const title =
     opts.sessionTitle ||
-    `${getOrganizeTitlePrefix()}·任务`;
+    `${getConsoleTitlePrefix()}·任务`;
   if (typeof sessionController.rename === 'function') {
     try {
       await sessionController.rename({ sessionId, title });
@@ -115,28 +147,35 @@ export async function wakeOrganizeSession(opts) {
   if (typeof sessionController.prompt !== 'function') {
     throw new Error('sessionController.prompt 不可用');
   }
-  // 宿主签名：prompt(request, signal)；缺 signal 会在 throwIfAborted 处崩
+  // 宿主签名：prompt(request, signal)；须 requestId + signal
   const signal =
     opts.signal instanceof AbortSignal
       ? opts.signal
       : new AbortController().signal;
-  const accepted = await sessionController.prompt(
-    {
-      sessionId,
-      mode: 'queue',
-      content: [{ type: 'text', text: promptText }],
-    },
-    signal,
-  );
+  const requestId = String(opts.requestId || randomUUID());
+  let accepted;
+  try {
+    accepted = await sessionController.prompt(
+      {
+        sessionId,
+        requestId,
+        mode: 'queue',
+        content: [{ type: 'text', text: promptText }],
+      },
+      signal,
+    );
+  } catch (err) {
+    throw new Error(formatWakeError(err));
+  }
 
-  return { ok: true, sessionId, cwd, accepted, title };
+  return { ok: true, sessionId, cwd, accepted, title, requestId };
 }
 
 /**
  * @param {import('../db.js').MemoryDb} db
  * @param {{ day_key: string, sessionController: *, cwd?: string }} opts
  */
-export async function runDigestOrganizeWake(db, opts) {
+export async function runDigestConsoleWake(db, opts) {
   const day_key = String(opts.day_key || '').trim();
   if (!day_key) throw new Error('day_key required');
 
@@ -145,7 +184,7 @@ export async function runDigestOrganizeWake(db, opts) {
     return { day_key, job_count: 0, status: 'no_jobs', woken: false };
   }
 
-  const promptText = buildDigestOrganizePrompt({
+  const promptText = buildDigestConsolePrompt({
     day_key,
     jobs: jobs.map((j) => ({
       peer_id: j.peer_id,
@@ -154,11 +193,11 @@ export async function runDigestOrganizeWake(db, opts) {
     })),
   });
 
-  const wake = await wakeOrganizeSession({
+  const wake = await wakeConsoleSession({
     sessionController: opts.sessionController,
     cwd: opts.cwd,
     promptText,
-    sessionTitle: `${getOrganizeTitlePrefix()}·日摘 ${day_key}`,
+    sessionTitle: `${getConsoleTitlePrefix()}·日摘 ${day_key}`,
   });
 
   return {
@@ -175,7 +214,7 @@ export async function runDigestOrganizeWake(db, opts) {
  * @param {import('../db.js').MemoryDb} db
  * @param {{ as_of_day: string, sessionController: *, cwd?: string }} opts
  */
-export async function runPromoteOrganizeWake(db, opts) {
+export async function runPromoteConsoleWake(db, opts) {
   const as_of_day = String(opts.as_of_day || '').trim();
   if (!as_of_day) throw new Error('as_of_day required');
 
@@ -190,7 +229,7 @@ export async function runPromoteOrganizeWake(db, opts) {
     };
   }
 
-  const promptText = buildPromoteOrganizePrompt({
+  const promptText = buildPromoteConsolePrompt({
     as_of_day,
     digests: digests.map((d) => ({
       id: d.id,
@@ -199,11 +238,11 @@ export async function runPromoteOrganizeWake(db, opts) {
     })),
   });
 
-  const wake = await wakeOrganizeSession({
+  const wake = await wakeConsoleSession({
     sessionController: opts.sessionController,
     cwd: opts.cwd,
     promptText,
-    sessionTitle: `${getOrganizeTitlePrefix()}·晋升 ${as_of_day}`,
+    sessionTitle: `${getConsoleTitlePrefix()}·晋升 ${as_of_day}`,
   });
 
   return {
@@ -220,7 +259,7 @@ export async function runPromoteOrganizeWake(db, opts) {
  * @param {import('../db.js').MemoryDb} db
  * @param {{ trigger: string, now?: number, sessionController: *, cwd?: string }} opts
  */
-export async function runReassessOrganizeWake(db, opts) {
+export async function runReassessConsoleWake(db, opts) {
   const trigger = opts.trigger === 'rhythm' ? 'rhythm' : 'growth';
   const plan = planScheduledReassess(db, {
     trigger,
@@ -239,12 +278,12 @@ export async function runReassessOrganizeWake(db, opts) {
     };
   }
 
-  const promptText = buildReassessOrganizePrompt({ plan });
-  const wake = await wakeOrganizeSession({
+  const promptText = buildReassessConsolePrompt({ plan });
+  const wake = await wakeConsoleSession({
     sessionController: opts.sessionController,
     cwd: opts.cwd,
     promptText,
-    sessionTitle: `${getOrganizeTitlePrefix()}·${plan.task_reason}`,
+    sessionTitle: `${getConsoleTitlePrefix()}·${plan.task_reason}`,
   });
 
   return {
