@@ -18,21 +18,94 @@ const TICK_MS = 30_000;
 
 /**
  * @param {*} ctx
+ * @param {string} name
+ * @param {string} method
  * @returns {*}
  */
-export function resolveSessionController(ctx) {
+function resolveCtxService(ctx, name, method) {
   if (!ctx) return null;
-  if (ctx.sessionController && typeof ctx.sessionController.create === 'function') {
-    return ctx.sessionController;
+  if (ctx[name] && typeof ctx[name][method] === 'function') {
+    return ctx[name];
   }
   if (typeof ctx.get !== 'function') return null;
   // 非严格：服务已注册但 fiber 尚未完全 active 时也可取到
-  let svc = ctx.get('sessionController', false);
-  if (!svc || typeof svc.create !== 'function') {
-    svc = ctx.get('sessionController');
+  let svc = ctx.get(name, false);
+  if (!svc || typeof svc[method] !== 'function') {
+    svc = ctx.get(name);
   }
-  if (svc && typeof svc.create === 'function') return svc;
+  if (svc && typeof svc[method] === 'function') return svc;
   return null;
+}
+
+/**
+ * @param {*} ctx
+ * @returns {*}
+ */
+export function resolveSessionController(ctx) {
+  return resolveCtxService(ctx, 'sessionController', 'create');
+}
+
+/**
+ * @param {*} ctx
+ * @returns {*}
+ */
+export function resolveWorkspaceController(ctx) {
+  return resolveCtxService(ctx, 'workspaceController', 'create');
+}
+
+/**
+ * @param {*} ctx
+ * @returns {*}
+ */
+export function resolvePermissionPresets(ctx) {
+  return resolveCtxService(ctx, 'permissionPresets', 'set');
+}
+
+/**
+ * @param {*} ctx
+ * @returns {{ get?: function } | null}
+ */
+export function resolveSessions(ctx) {
+  if (!ctx) return null;
+  if (ctx.sessions && typeof ctx.sessions.get === 'function') return ctx.sessions;
+  if (typeof ctx.get !== 'function') return null;
+  let svc = ctx.get('sessions', false);
+  if (!svc || typeof svc.get !== 'function') {
+    svc = ctx.get('sessions');
+  }
+  if (svc && typeof svc.get === 'function') return svc;
+  return null;
+}
+
+/**
+ * 叫醒所需宿主面；缺任一则返回 error 文案。
+ * @param {*} ctx
+ * @returns {{ ok: true, sessionController: *, workspaceController: *, permissionPresets: *, sessions: * } | { ok: false, error: string }}
+ */
+export function resolveConsoleWakeDeps(ctx) {
+  const sessionController = resolveSessionController(ctx);
+  if (!sessionController) {
+    return { ok: false, error: '宿主会话服务未就绪，未能叫醒' };
+  }
+  const workspaceController = resolveWorkspaceController(ctx);
+  if (!workspaceController) {
+    return { ok: false, error: '宿主工作区服务未就绪，未能叫醒' };
+  }
+  const permissionPresets = resolvePermissionPresets(ctx);
+  if (!permissionPresets) {
+    return { ok: false, error: '宿主权限服务未就绪，未能叫醒' };
+  }
+  const sessions = resolveSessions(ctx);
+  if (!sessions) {
+    return { ok: false, error: '宿主会话表未就绪，未能设权限' };
+  }
+  return {
+    ok: true,
+    sessionController,
+    workspaceController,
+    permissionPresets,
+    sessions,
+  };
 }
 
 /**
@@ -55,19 +128,22 @@ export function registerSchedTick(ctx) {
 
   const hooks = {
     async wakeDigest({ day_key }) {
-      const sessionController = resolveSessionController(ctx);
-      if (!sessionController) {
+      const deps = resolveConsoleWakeDeps(ctx);
+      if (!deps.ok) {
         return {
           status: 'skipped_no_hook',
           woken: false,
-          error: '宿主会话服务未就绪，未能叫醒',
+          error: deps.error,
         };
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
         return await runDigestConsoleWake(db, {
           day_key,
-          sessionController,
+          sessionController: deps.sessionController,
+          workspaceController: deps.workspaceController,
+          permissionPresets: deps.permissionPresets,
+          sessions: deps.sessions,
           cwd: resolveConsoleCwd(),
         });
       } finally {
@@ -75,19 +151,22 @@ export function registerSchedTick(ctx) {
       }
     },
     async wakePromote({ as_of_day }) {
-      const sessionController = resolveSessionController(ctx);
-      if (!sessionController) {
+      const deps = resolveConsoleWakeDeps(ctx);
+      if (!deps.ok) {
         return {
           status: 'skipped_no_hook',
           woken: false,
-          error: '宿主会话服务未就绪，未能叫醒',
+          error: deps.error,
         };
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
         return await runPromoteConsoleWake(db, {
           as_of_day,
-          sessionController,
+          sessionController: deps.sessionController,
+          workspaceController: deps.workspaceController,
+          permissionPresets: deps.permissionPresets,
+          sessions: deps.sessions,
           cwd: resolveConsoleCwd(),
         });
       } finally {
@@ -95,12 +174,12 @@ export function registerSchedTick(ctx) {
       }
     },
     async wakeReassess({ trigger, now }) {
-      const sessionController = resolveSessionController(ctx);
-      if (!sessionController) {
+      const deps = resolveConsoleWakeDeps(ctx);
+      if (!deps.ok) {
         return {
           status: 'skipped_no_hook',
           woken: false,
-          error: '宿主会话服务未就绪，未能叫醒',
+          error: deps.error,
         };
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
@@ -108,7 +187,10 @@ export function registerSchedTick(ctx) {
         return await runReassessConsoleWake(db, {
           trigger,
           now,
-          sessionController,
+          sessionController: deps.sessionController,
+          workspaceController: deps.workspaceController,
+          permissionPresets: deps.permissionPresets,
+          sessions: deps.sessions,
           cwd: resolveConsoleCwd(),
         });
       } finally {
@@ -119,13 +201,13 @@ export function registerSchedTick(ctx) {
 
   installWakeHooks(hooks);
 
-  const early = resolveSessionController(ctx);
-  if (!early) {
+  const early = resolveConsoleWakeDeps(ctx);
+  if (!early.ok) {
     logWarn(
-      '[dsh-companion] 此刻尚无 sessionController；将在每次叫醒时重试（勿当作永久失败）',
+      `[dsh-companion] 此刻叫醒依赖未齐（${early.error}）；将在每次叫醒时重试（勿当作永久失败）`,
     );
   } else {
-    logInfo('[dsh-companion] sessionController 已可见，叫醒可用控制台会话');
+    logInfo('[dsh-companion] 叫醒依赖已可见（会话 / 工作区 / 权限）');
   }
 
   const intervalFn =

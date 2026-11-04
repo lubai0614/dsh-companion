@@ -1,9 +1,11 @@
 ﻿/**
  * 控制台叫醒：固定会话复用 + 投递任务说明（细案 03 §三 / 细节 §7.5）。
  * 手动启动与到点自动同一路径。不等整轮结束；收尾靠 dc_*_complete。
+ * 挂命名工作区；权限完全放行（免 ask）。
  */
 
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
 import { listDigestJobsForDay, listDigestsForPromote } from '../near.js';
 import { planScheduledReassess } from '../reassess.js';
 import { resolveConsoleCwd } from '../paths.js';
@@ -15,6 +17,9 @@ import {
   getConsoleTitlePrefix,
   markConsoleSession,
 } from '../host/session-kind.js';
+
+/** 宿主权限预设：完全权限 → 审批 never（细案 03 §三） */
+export const CONSOLE_PERMISSION_PRESET = 'danger-full-access';
 
 function extractSessionId(created) {
   return (
@@ -99,8 +104,70 @@ export function buildReassessConsolePrompt(opts) {
 }
 
 /**
+ * 确保 console cwd 目录存在，并解析/创建命名工作区。
+ * @param {{ workspaceController: *, cwd: string, workspaceTitle: string }} opts
+ * @returns {Promise<{ workspaceId: string, cwd: string }>}
+ */
+export async function ensureConsoleWorkspace(opts) {
+  const workspaceController = opts.workspaceController;
+  if (!workspaceController || typeof workspaceController.create !== 'function') {
+    throw new Error('workspaceController.create 不可用');
+  }
+  const cwd = opts.cwd;
+  fs.mkdirSync(cwd, { recursive: true });
+
+  let created;
+  try {
+    created = await workspaceController.create({ path: cwd });
+  } catch (err) {
+    throw new Error(formatWakeError(err));
+  }
+  const workspaceId =
+    created?.workspace?.workspaceId ||
+    created?.workspaceId ||
+    created?.workspace?.id ||
+    null;
+  if (!workspaceId) throw new Error('workspace/create missing workspaceId');
+
+  const wantTitle = String(opts.workspaceTitle || getConsoleTitlePrefix()).trim();
+  const currentTitle = String(
+    created?.workspace?.title || created?.title || '',
+  ).trim();
+  if (
+    wantTitle &&
+    currentTitle !== wantTitle &&
+    typeof workspaceController.rename === 'function'
+  ) {
+    try {
+      await workspaceController.rename({ workspaceId, title: wantTitle });
+    } catch (err) {
+      throw new Error(formatWakeError(err));
+    }
+  }
+
+  return { workspaceId, cwd };
+}
+
+/**
+ * 控制台会话切到完全权限（审批 never），免侧栏点批准。
+ * @param {{ permissionPresets: *, session: * }} opts
+ */
+export function applyConsolePermissionPreset(opts) {
+  const permissionPresets = opts.permissionPresets;
+  if (!permissionPresets || typeof permissionPresets.set !== 'function') {
+    throw new Error('permissionPresets.set 不可用');
+  }
+  const session = opts.session;
+  if (!session) throw new Error('控制台会话对象不可用，无法设权限');
+  permissionPresets.set(session, CONSOLE_PERMISSION_PRESET);
+}
+
+/**
  * @param {object} opts
  * @param {*} opts.sessionController
+ * @param {*} opts.workspaceController
+ * @param {*} opts.permissionPresets
+ * @param {{ get?: function }} [opts.sessions] 宿主 `ctx.sessions`；用于取 Session 对象设权限
  * @param {string} opts.promptText
  * @param {string} [opts.sessionTitle]
  * @param {string} [opts.cwd]
@@ -116,11 +183,18 @@ export async function wakeConsoleSession(opts) {
   if (!promptText) throw new Error('promptText required');
 
   const cwd = opts.cwd || resolveConsoleCwd();
+  const workspaceTitle = getConsoleTitlePrefix();
+  const { workspaceId } = await ensureConsoleWorkspace({
+    workspaceController: opts.workspaceController,
+    cwd,
+    workspaceTitle,
+  });
+
   const storedId = getStoredConsoleSessionId();
   let created;
   try {
     created = await sessionController.create({
-      cwd,
+      workspaceId,
       ...(storedId ? { sessionId: storedId } : {}),
       ...(opts.agentPreset ? { agentPreset: opts.agentPreset } : {}),
     });
@@ -132,6 +206,16 @@ export async function wakeConsoleSession(opts) {
 
   storeConsoleSessionId(sessionId);
   markConsoleSession(sessionId);
+
+  const sessions = opts.sessions;
+  const liveSession =
+    sessions && typeof sessions.get === 'function'
+      ? sessions.get(sessionId)
+      : null;
+  applyConsolePermissionPreset({
+    permissionPresets: opts.permissionPresets,
+    session: liveSession,
+  });
 
   const title =
     opts.sessionTitle ||
@@ -168,12 +252,20 @@ export async function wakeConsoleSession(opts) {
     throw new Error(formatWakeError(err));
   }
 
-  return { ok: true, sessionId, cwd, accepted, title, requestId };
+  return {
+    ok: true,
+    sessionId,
+    workspaceId,
+    cwd,
+    accepted,
+    title,
+    requestId,
+  };
 }
 
 /**
  * @param {import('../db.js').MemoryDb} db
- * @param {{ day_key: string, sessionController: *, cwd?: string }} opts
+ * @param {{ day_key: string, sessionController: *, workspaceController: *, permissionPresets: *, sessions?: *, cwd?: string }} opts
  */
 export async function runDigestConsoleWake(db, opts) {
   const day_key = String(opts.day_key || '').trim();
@@ -195,6 +287,9 @@ export async function runDigestConsoleWake(db, opts) {
 
   const wake = await wakeConsoleSession({
     sessionController: opts.sessionController,
+    workspaceController: opts.workspaceController,
+    permissionPresets: opts.permissionPresets,
+    sessions: opts.sessions,
     cwd: opts.cwd,
     promptText,
     sessionTitle: `${getConsoleTitlePrefix()}·日摘 ${day_key}`,
@@ -207,12 +302,13 @@ export async function runDigestConsoleWake(db, opts) {
     woken: true,
     peers: jobs.map((j) => j.peer_id),
     sessionId: wake.sessionId,
+    workspaceId: wake.workspaceId,
   };
 }
 
 /**
  * @param {import('../db.js').MemoryDb} db
- * @param {{ as_of_day: string, sessionController: *, cwd?: string }} opts
+ * @param {{ as_of_day: string, sessionController: *, workspaceController: *, permissionPresets: *, sessions?: *, cwd?: string }} opts
  */
 export async function runPromoteConsoleWake(db, opts) {
   const as_of_day = String(opts.as_of_day || '').trim();
@@ -240,6 +336,9 @@ export async function runPromoteConsoleWake(db, opts) {
 
   const wake = await wakeConsoleSession({
     sessionController: opts.sessionController,
+    workspaceController: opts.workspaceController,
+    permissionPresets: opts.permissionPresets,
+    sessions: opts.sessions,
     cwd: opts.cwd,
     promptText,
     sessionTitle: `${getConsoleTitlePrefix()}·晋升 ${as_of_day}`,
@@ -252,12 +351,13 @@ export async function runPromoteConsoleWake(db, opts) {
     status: 'woken',
     woken: true,
     sessionId: wake.sessionId,
+    workspaceId: wake.workspaceId,
   };
 }
 
 /**
  * @param {import('../db.js').MemoryDb} db
- * @param {{ trigger: string, now?: number, sessionController: *, cwd?: string }} opts
+ * @param {{ trigger: string, now?: number, sessionController: *, workspaceController: *, permissionPresets: *, sessions?: *, cwd?: string }} opts
  */
 export async function runReassessConsoleWake(db, opts) {
   const trigger = opts.trigger === 'rhythm' ? 'rhythm' : 'growth';
@@ -281,6 +381,9 @@ export async function runReassessConsoleWake(db, opts) {
   const promptText = buildReassessConsolePrompt({ plan });
   const wake = await wakeConsoleSession({
     sessionController: opts.sessionController,
+    workspaceController: opts.workspaceController,
+    permissionPresets: opts.permissionPresets,
+    sessions: opts.sessions,
     cwd: opts.cwd,
     promptText,
     sessionTitle: `${getConsoleTitlePrefix()}·${plan.task_reason}`,
@@ -294,5 +397,6 @@ export async function runReassessConsoleWake(db, opts) {
     job_count: (plan.target_peers || []).length,
     peers: (plan.target_peers || []).map((p) => p.peer_id),
     sessionId: wake.sessionId,
+    workspaceId: wake.workspaceId,
   };
 }
