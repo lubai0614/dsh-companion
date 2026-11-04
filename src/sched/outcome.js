@@ -9,11 +9,16 @@ export function summarizeSchedOutcome(out) {
   if (out.status === 'busy') {
     return pack('busy', '已拒启', `当前占用：${out.running?.task || '未知'}`);
   }
+  // 无钩子须先于泛化 skipped，避免文案误成「条件未满足」
+  if (out.status === 'skipped_no_hook') {
+    return pack(
+      'skipped_no_hook',
+      '已跳过',
+      out.error ? String(out.error) : '宿主会话服务未就绪，未能叫醒',
+    );
+  }
   if (out.status === 'skipped_not_due' || out.skipped) {
     return pack('skipped_not_due', '已跳过', '条件未满足，未叫醒');
-  }
-  if (out.status === 'skipped_no_hook') {
-    return pack('skipped_no_hook', '已跳过', '无叫醒钩子');
   }
   if (out.ok === false || (out.woken === false && out.error)) {
     return pack('failed', '失败', String(out.error || out.message || '未知错误'));

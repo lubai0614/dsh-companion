@@ -17,6 +17,7 @@ export {
   isOrganizeSession,
   assertBooklet,
 } from './session-kind.js';
+export { resolveSessionController, registerSchedTick } from './register-tick.js';
 
 /**
  * @param {*} ctx

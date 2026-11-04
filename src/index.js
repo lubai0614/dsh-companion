@@ -215,4 +215,5 @@ export async function apply(ctx) {
 }
 
 export const name = 'dsh-companion';
-export const inject = ['webServer', 'tools'];
+/** 叫醒建整理会话依赖 sessionController；仍在叫醒时再 get 一次以防时序。 */
+export const inject = ['webServer', 'tools', 'sessionController'];

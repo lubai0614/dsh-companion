@@ -1,5 +1,6 @@
 /**
  * 宿主进程内调度 tick + 接线真叫醒（步 8B）。
+ * 会话控制器在叫醒时再取：apply 瞬间 fiber 可能尚未 active。
  */
 
 import { openMemoryDb } from '../db.js';
@@ -17,15 +18,31 @@ const TICK_MS = 30_000;
 
 /**
  * @param {*} ctx
+ * @returns {*}
+ */
+export function resolveSessionController(ctx) {
+  if (!ctx) return null;
+  if (ctx.sessionController && typeof ctx.sessionController.create === 'function') {
+    return ctx.sessionController;
+  }
+  if (typeof ctx.get !== 'function') return null;
+  // 非严格：服务已注册但 fiber 尚未完全 active 时也可取到
+  let svc = ctx.get('sessionController', false);
+  if (!svc || typeof svc.create !== 'function') {
+    svc = ctx.get('sessionController');
+  }
+  if (svc && typeof svc.create === 'function') return svc;
+  return null;
+}
+
+/**
+ * @param {*} ctx
  * @returns {Array<() => void>}
  */
 export function registerSchedTick(ctx) {
   const logger = ctx?.logger;
   /** @type {Array<() => void>} */
   const disposers = [];
-
-  const sessionController =
-    typeof ctx?.get === 'function' ? ctx.get('sessionController') : ctx?.sessionController;
 
   function logInfo(m) {
     if (logger?.info) logger.info(m);
@@ -36,14 +53,15 @@ export function registerSchedTick(ctx) {
     else console.warn(m);
   }
 
-  if (!sessionController || typeof sessionController.create !== 'function') {
-    logWarn('[dsh-companion] sessionController 不可用：到点不会真叫醒；手动/假钩子仍可测跑表');
-  }
-
   const hooks = {
     async wakeDigest({ day_key }) {
-      if (!sessionController?.create) {
-        return { status: 'skipped_no_hook', skipped: true, woken: false };
+      const sessionController = resolveSessionController(ctx);
+      if (!sessionController) {
+        return {
+          status: 'skipped_no_hook',
+          woken: false,
+          error: '宿主会话服务未就绪，未能叫醒',
+        };
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
@@ -57,8 +75,13 @@ export function registerSchedTick(ctx) {
       }
     },
     async wakePromote({ as_of_day }) {
-      if (!sessionController?.create) {
-        return { status: 'skipped_no_hook', skipped: true, woken: false };
+      const sessionController = resolveSessionController(ctx);
+      if (!sessionController) {
+        return {
+          status: 'skipped_no_hook',
+          woken: false,
+          error: '宿主会话服务未就绪，未能叫醒',
+        };
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
@@ -72,8 +95,13 @@ export function registerSchedTick(ctx) {
       }
     },
     async wakeReassess({ trigger, now }) {
-      if (!sessionController?.create) {
-        return { status: 'skipped_no_hook', skipped: true, woken: false };
+      const sessionController = resolveSessionController(ctx);
+      if (!sessionController) {
+        return {
+          status: 'skipped_no_hook',
+          woken: false,
+          error: '宿主会话服务未就绪，未能叫醒',
+        };
       }
       const db = openMemoryDb({ dbPath: resolveDefaultDbPath() });
       try {
@@ -90,6 +118,15 @@ export function registerSchedTick(ctx) {
   };
 
   installWakeHooks(hooks);
+
+  const early = resolveSessionController(ctx);
+  if (!early) {
+    logWarn(
+      '[dsh-companion] 此刻尚无 sessionController；将在每次叫醒时重试（勿当作永久失败）',
+    );
+  } else {
+    logInfo('[dsh-companion] sessionController 已可见，叫醒可建整理会话');
+  }
 
   const intervalFn =
     typeof ctx?.interval === 'function'

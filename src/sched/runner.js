@@ -65,7 +65,11 @@ export function createSchedRunner(db, hooks = {}) {
       if (typeof hooks.wakeDigest === 'function') {
         return hooks.wakeDigest({ day_key });
       }
-      return { status: 'skipped_no_hook', skipped: true, woken: false };
+      return {
+        status: 'skipped_no_hook',
+        woken: false,
+        error: '未接线叫醒钩子',
+      };
     });
     if (out?.status === 'busy') {
       recordSchedRun(db, { task: 'digest', out, day_key, started_at });
@@ -91,7 +95,11 @@ export function createSchedRunner(db, hooks = {}) {
       if (typeof hooks.wakePromote === 'function') {
         return hooks.wakePromote({ as_of_day });
       }
-      return { status: 'skipped_no_hook', skipped: true, woken: false };
+      return {
+        status: 'skipped_no_hook',
+        woken: false,
+        error: '未接线叫醒钩子',
+      };
     });
     if (out?.status === 'busy') {
       recordSchedRun(db, { task: 'promote', out, day_key: as_of_day, started_at });
@@ -113,7 +121,11 @@ export function createSchedRunner(db, hooks = {}) {
       if (typeof hooks.wakeReassess === 'function') {
         return hooks.wakeReassess({ trigger, now: nowMs });
       }
-      return { status: 'skipped_no_hook', skipped: true, woken: false };
+      return {
+        status: 'skipped_no_hook',
+        woken: false,
+        error: '未接线叫醒钩子',
+      };
     });
     if (out?.status === 'busy') {
       recordSchedRun(db, { task: taskId, out, started_at });
