@@ -215,10 +215,11 @@ export async function apply(ctx) {
 }
 
 export const name = 'dsh-companion';
-/** 叫醒控制台：会话 / 工作区 / 权限；仍在叫醒时再 get 一次以防时序。 */
+/** 叫醒控制台：会话表 / 会话控制器 / 工作区 / 权限；仍在叫醒时再 get 一次以防时序。 */
 export const inject = [
   'webServer',
   'tools',
+  'sessions',
   'sessionController',
   'workspaceController',
   'permissionPresets',
