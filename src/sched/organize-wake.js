@@ -77,6 +77,7 @@ export function buildReassessOrganizePrompt(opts) {
  * @param {string} [opts.sessionTitle]
  * @param {string} [opts.cwd]
  * @param {string} [opts.agentPreset]
+ * @param {AbortSignal} [opts.signal] 投递受理前的取消令牌；缺省用新的未中止 signal
  */
 export async function wakeOrganizeSession(opts) {
   const sessionController = opts.sessionController;
@@ -114,11 +115,19 @@ export async function wakeOrganizeSession(opts) {
   if (typeof sessionController.prompt !== 'function') {
     throw new Error('sessionController.prompt 不可用');
   }
-  const accepted = await sessionController.prompt({
-    sessionId,
-    mode: 'queue',
-    content: [{ type: 'text', text: promptText }],
-  });
+  // 宿主签名：prompt(request, signal)；缺 signal 会在 throwIfAborted 处崩
+  const signal =
+    opts.signal instanceof AbortSignal
+      ? opts.signal
+      : new AbortController().signal;
+  const accepted = await sessionController.prompt(
+    {
+      sessionId,
+      mode: 'queue',
+      content: [{ type: 'text', text: promptText }],
+    },
+    signal,
+  );
 
   return { ok: true, sessionId, cwd, accepted, title };
 }
