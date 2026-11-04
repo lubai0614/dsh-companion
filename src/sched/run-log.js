@@ -143,7 +143,7 @@ export function getLatestClosedSchedRun(db, task) {
     )
     .all(t);
   for (const row of rows) {
-    if (!isOpenOrganizeRun(row)) return row;
+    if (!isOpenSchedRun(row)) return row;
   }
   return null;
 }
@@ -167,7 +167,7 @@ export function getLatestProgressAt(db, task) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-export function isOpenOrganizeRun(row) {
+export function isOpenSchedRun(row) {
   if (!row) return false;
   if (Number(row.advances_progress) === 1) return false;
   const summary = String(row.summary || '');
@@ -181,12 +181,12 @@ export function isOpenOrganizeRun(row) {
 /**
  * @param {import('../db.js').MemoryDb} db
  */
-export function listOpenOrganizeRuns(db) {
+export function listOpenSchedRuns(db) {
   /** @type {{ task: string, row: object, at: number }[]} */
   const out = [];
   for (const task of TASKS) {
     const latest = getLatestSchedRun(db, task);
-    if (!isOpenOrganizeRun(latest)) continue;
+    if (!isOpenSchedRun(latest)) continue;
     out.push({
       task,
       row: latest,
@@ -202,8 +202,8 @@ export function listOpenOrganizeRuns(db) {
 /**
  * @param {import('../db.js').MemoryDb} db
  */
-export function getActiveOrganizeTask(db) {
-  return listOpenOrganizeRuns(db)[0] || null;
+export function getActiveSchedTask(db) {
+  return listOpenSchedRuns(db)[0] || null;
 }
 
 /**
@@ -223,7 +223,7 @@ export function finalizeSchedRun(db, opts) {
       ? latest?.day_key ?? null
       : String(opts.day_key);
 
-  if (isOpenOrganizeRun(latest)) {
+  if (isOpenSchedRun(latest)) {
     const id = Number(latest.id);
     db.db
       .prepare(
@@ -279,9 +279,9 @@ export function finalizeSchedRun(db, opts) {
  * 解除卡住：就地改写 → 失败；不推进。
  * @param {import('../db.js').MemoryDb} db
  */
-export function abandonOpenOrganizeRuns(db, reason) {
+export function abandonOpenSchedRuns(db, reason) {
   const detail = String(reason || '控制台任务未收尾，已人工解除').trim();
-  const open = listOpenOrganizeRuns(db);
+  const open = listOpenSchedRuns(db);
   /** @type {object[]} */
   const closed = [];
   for (const item of open) {
@@ -303,7 +303,7 @@ export function abandonOpenOrganizeRuns(db, reason) {
  * @param {import('../db.js').MemoryDb} db
  * @param {'digest'|'promote'|'growth'|'rhythm'} task
  */
-export function completeOrganizeRun(db, task, opts = {}) {
+export function completeSchedRun(db, task, opts = {}) {
   const t = normalizeSchedTask(task);
   const defaults = {
     digest: '已完成：日摘整理收尾',

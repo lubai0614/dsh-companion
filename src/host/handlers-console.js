@@ -18,7 +18,7 @@ import {
   planScheduledReassess,
 } from '../reassess.js';
 import { resolveCurrent } from '../resolve.js';
-import { completeOrganizeRun } from '../sched/run-log.js';
+import { completeSchedRun } from '../sched/run-log.js';
 import { withMemoryDb, withMemoryDbAsync } from '../settings/open-db.js';
 import { normalizeQqPeerId } from './peer.js';
 
@@ -171,7 +171,7 @@ export function handleDigestComplete(args = {}) {
         ? undefined
         : String(args.summary).trim();
     const row = withMemoryDb((db) =>
-      completeOrganizeRun(db, 'digest', { day_key, summary }),
+      completeSchedRun(db, 'digest', { day_key, summary }),
     );
     return ok({
       updated: Boolean(row?.updated),
@@ -273,7 +273,7 @@ export function handlePromoteComplete(args = {}) {
         ? undefined
         : String(args.summary).trim();
     const row = withMemoryDb((db) =>
-      completeOrganizeRun(db, 'promote', { day_key, summary }),
+      completeSchedRun(db, 'promote', { day_key, summary }),
     );
     return ok({
       updated: Boolean(row?.updated),

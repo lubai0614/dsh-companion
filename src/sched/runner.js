@@ -7,7 +7,7 @@ import { localDayKey, shiftDayKey } from '../near.js';
 import { isAtScheduledMinute, localHhMmKey, parseHhMm } from './clock.js';
 import { withSchedLock } from './lock.js';
 import { recordSchedRun } from './record.js';
-import { listOpenOrganizeRuns } from './run-log.js';
+import { listOpenSchedRuns } from './run-log.js';
 
 /**
  * @param {import('../db.js').MemoryDb} db
@@ -42,20 +42,20 @@ export function createSchedRunner(db, hooks = {}) {
     return shiftDayKey(localDayKey(now), -1);
   }
 
-  function rejectIfOrganizeOpen() {
-    const open = listOpenOrganizeRuns(db);
+  function rejectIfSchedOpen() {
+    const open = listOpenSchedRuns(db);
     if (!open.length) return null;
     return {
       status: 'busy',
       woken: false,
-      error: 'organize_open',
+      error: 'sched_open',
       running: { task: open[0].task },
       open_count: open.length,
     };
   }
 
   async function runDigestWake(day_key) {
-    const blocked = rejectIfOrganizeOpen();
+    const blocked = rejectIfSchedOpen();
     if (blocked) {
       recordSchedRun(db, { task: 'digest', out: blocked, day_key, started_at: Date.now() });
       return blocked;
@@ -80,7 +80,7 @@ export function createSchedRunner(db, hooks = {}) {
   }
 
   async function runPromoteWake(as_of_day) {
-    const blocked = rejectIfOrganizeOpen();
+    const blocked = rejectIfSchedOpen();
     if (blocked) {
       recordSchedRun(db, {
         task: 'promote',
@@ -111,7 +111,7 @@ export function createSchedRunner(db, hooks = {}) {
 
   async function runReassessWake(trigger, nowMs) {
     const taskId = trigger === 'growth' ? 'growth' : 'rhythm';
-    const blocked = rejectIfOrganizeOpen();
+    const blocked = rejectIfSchedOpen();
     if (blocked) {
       recordSchedRun(db, { task: taskId, out: blocked, started_at: Date.now() });
       return blocked;
@@ -233,10 +233,9 @@ export function createSchedRunner(db, hooks = {}) {
     runDigestWake,
     runPromoteWake,
     runReassessWake,
-    runDigestOrganizeNow: (day_key) => runDigestWake(day_key || yesterdayKey()),
-    runPromoteOrganizeNow: (as_of_day) =>
-      runPromoteWake(as_of_day || yesterdayKey()),
-    runReassessOrganizeNow: (trigger = 'growth', nowMs) =>
+    runDigestNow: (day_key) => runDigestWake(day_key || yesterdayKey()),
+    runPromoteNow: (as_of_day) => runPromoteWake(as_of_day || yesterdayKey()),
+    runReassessNow: (trigger = 'growth', nowMs) =>
       runReassessWake(trigger === 'rhythm' ? 'rhythm' : 'growth', nowMs),
   };
 }

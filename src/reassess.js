@@ -5,10 +5,10 @@
 import { localDayKey } from './near.js';
 import { listCurrentByPeer } from './resolve.js';
 import {
-  completeOrganizeRun,
+  completeSchedRun,
   getLatestProgressAt,
   getLatestSchedRun,
-  isOpenOrganizeRun,
+  isOpenSchedRun,
 } from './sched/run-log.js';
 
 const DAY_MS = 86_400_000;
@@ -212,7 +212,7 @@ export function markReassessComplete(db, kind, now = Date.now()) {
     throw new Error('kind 仅允许 growth|rhythm（禁止 merged）');
   }
   const at = Number(now);
-  const open = isOpenOrganizeRun(getLatestSchedRun(db, k));
+  const open = isOpenSchedRun(getLatestSchedRun(db, k));
   if (!open) {
     console.warn('[dsh-companion][sched] reassess complete with no open 整理中; will not insert', {
       kind: k,
@@ -226,7 +226,7 @@ export function markReassessComplete(db, kind, now = Date.now()) {
       updated: false,
     };
   }
-  const row = completeOrganizeRun(db, k, {
+  const row = completeSchedRun(db, k, {
     summary: '已完成：整理回合已完成',
   });
   return {

@@ -10,7 +10,7 @@ export {
   setPluginTickActive,
   getPluginTickActive,
   readSchedStatusPayload,
-  abandonSchedOrganizePayload,
+  abandonOpenSchedPayload,
   startSchedTaskPayload,
   readSchedRunsPayload,
 } from './api-sched.js';

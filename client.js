@@ -713,7 +713,7 @@ window.__ModuleLoader__.load({
                 {
                   'data-dc-btn': '',
                   'data-primary': '',
-                  disabled: busy || status?.organize_busy?.busy || status?.lock?.busy,
+                  disabled: busy || status?.sched_busy?.busy || status?.lock?.busy,
                   onClick: () => start(card.id),
                 },
                 '手动启动',

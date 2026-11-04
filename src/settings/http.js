@@ -8,7 +8,7 @@ import {
 } from './api-memory.js';
 import { patchConfigPayload, readConfigPayload } from './api-config.js';
 import {
-  abandonSchedOrganizePayload,
+  abandonOpenSchedPayload,
   readSchedRunsPayload,
   readSchedStatusPayload,
   startSchedTaskPayload,
@@ -128,7 +128,7 @@ export async function handleSettingsHttp(req, res) {
       return sendJson(res, 200, startSchedTaskPayload(body));
     }
     if (method === 'POST' && sub === '/sched/abandon') {
-      return sendJson(res, 200, abandonSchedOrganizePayload());
+      return sendJson(res, 200, abandonOpenSchedPayload());
     }
     sendJson(res, 404, { ok: false, error: `未知路径: ${sub}` });
   } catch (err) {

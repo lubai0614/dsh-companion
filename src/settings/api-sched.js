@@ -3,11 +3,11 @@
 import { openMemoryDb } from '../db.js';
 import { localDayKey, shiftDayKey } from '../near.js';
 import {
-  abandonOpenOrganizeRuns,
+  abandonOpenSchedRuns,
   createSchedRunner,
   getLatestClosedSchedRun,
   getSchedLockStatus,
-  listOpenOrganizeRuns,
+  listOpenSchedRuns,
   listSchedRunsPage,
   recordSchedRun,
 } from '../sched/index.js';
@@ -133,17 +133,17 @@ async function executeTask(taskId, opts = {}) {
     const runner = createSchedRunner(db, getWakeHooks() || {});
     if (taskId === 'digest') {
       const day_key = opts.day_key || runner.yesterdayKey();
-      return await runner.runDigestOrganizeNow(day_key);
+      return await runner.runDigestNow(day_key);
     }
     if (taskId === 'promote') {
       const as_of_day = opts.day_key || runner.yesterdayKey();
-      return await runner.runPromoteOrganizeNow(as_of_day);
+      return await runner.runPromoteNow(as_of_day);
     }
     if (taskId === 'growth') {
-      return await runner.runReassessOrganizeNow('growth');
+      return await runner.runReassessNow('growth');
     }
     if (taskId === 'reassess') {
-      return await runner.runReassessOrganizeNow('rhythm');
+      return await runner.runReassessNow('rhythm');
     }
     return { status: 'failed', error: `未知任务: ${taskId}` };
   } finally {
@@ -160,10 +160,10 @@ export function readSchedStatusPayload(opts = {}) {
       const startedFmt = startedAt > 0 ? formatEpoch(startedAt) : null;
       const yesterday = defaultYesterday();
 
-      const openOrganizes = listOpenOrganizeRuns(db);
-      const activeOrganize = openOrganizes[0] || null;
-      const activeOrganizeLogTask = activeOrganize?.task || null;
-      const organizeBusy = openOrganizes.length > 0;
+      const openScheds = listOpenSchedRuns(db);
+      const activeSched = openScheds[0] || null;
+      const activeSchedLogTask = activeSched?.task || null;
+      const schedBusy = openScheds.length > 0;
 
       const tasks = TASKS.map((t) => {
         const time = db.getConfig(t.timeKey) || '—';
@@ -172,10 +172,10 @@ export function readSchedStatusPayload(opts = {}) {
         const closedAt = formatEpoch(closed?.finished_at);
         const runningHere = Boolean(runningTask && runningTask === lockTaskName(t.id));
         const organizing =
-          !runningHere && Boolean(activeOrganizeLogTask && activeOrganizeLogTask === t.logTask);
+          !runningHere && Boolean(activeSchedLogTask && activeSchedLogTask === t.logTask);
         const orgStart =
-          organizing && activeOrganize?.row
-            ? formatEpoch(activeOrganize.row.started_at)
+          organizing && activeSched?.row
+            ? formatEpoch(activeSched.row.started_at)
             : null;
         let status = 'idle';
         if (runningHere) status = 'running';
@@ -224,8 +224,8 @@ export function readSchedStatusPayload(opts = {}) {
         };
       });
 
-      const activeMeta = activeOrganize
-        ? TASKS.find((t) => t.logTask === activeOrganize.task)
+      const activeMeta = activeSched
+        ? TASKS.find((t) => t.logTask === activeSched.task)
         : null;
 
       const tickOn = getPluginTickActive();
@@ -249,12 +249,12 @@ export function readSchedStatusPayload(opts = {}) {
               started_at_display: startedFmt?.display || null,
             }
           : { busy: false },
-        organize_busy: organizeBusy
+        sched_busy: schedBusy
           ? {
               busy: true,
-              task: activeMeta?.id || activeOrganize.task,
-              title: activeMeta?.title || activeOrganize.task,
-              open_count: openOrganizes.length,
+              task: activeMeta?.id || activeSched.task,
+              title: activeMeta?.title || activeSched.task,
+              open_count: openScheds.length,
             }
           : { busy: false },
         tasks,
@@ -264,10 +264,10 @@ export function readSchedStatusPayload(opts = {}) {
   );
 }
 
-export function abandonSchedOrganizePayload(opts = {}) {
+export function abandonOpenSchedPayload(opts = {}) {
   return withMemoryDb(
     (db) => {
-      const out = abandonOpenOrganizeRuns(db, '控制台任务未收尾，已人工解除');
+      const out = abandonOpenSchedRuns(db, '控制台任务未收尾，已人工解除');
       return {
         ok: true,
         closed_count: out.closed_count,
@@ -313,28 +313,28 @@ export function startSchedTaskPayload(body, opts = {}) {
     };
   }
 
-  const organizeBlock = withMemoryDb(
+  const schedBlock = withMemoryDb(
     (db) => {
-      const openOrganizes = listOpenOrganizeRuns(db);
-      if (!openOrganizes.length) return null;
-      const active = openOrganizes[0];
+      const openScheds = listOpenSchedRuns(db);
+      if (!openScheds.length) return null;
+      const active = openScheds[0];
       const activeMeta = TASKS.find((t) => t.logTask === active.task);
       const title = activeMeta?.title || active.task;
       return {
         ok: false,
         error: 'busy',
         message: `已有整理未收尾：${title}（须等已完成后再启其它任务）`,
-        organize_busy: {
+        sched_busy: {
           busy: true,
           task: activeMeta?.id || active.task,
           title,
-          open_count: openOrganizes.length,
+          open_count: openScheds.length,
         },
       };
     },
     { readonly: true, dbPath: opts.dbPath },
   );
-  if (organizeBlock) return organizeBlock;
+  if (schedBlock) return schedBlock;
 
   setImmediate(() => {
     executeTask(task, { day_key: day_key || undefined, dbPath: opts.dbPath }).catch((err) => {

@@ -17,12 +17,12 @@ export {
   getLatestSchedRun,
   getLatestClosedSchedRun,
   getLatestProgressAt,
-  isOpenOrganizeRun,
-  listOpenOrganizeRuns,
-  getActiveOrganizeTask,
+  isOpenSchedRun,
+  listOpenSchedRuns,
+  getActiveSchedTask,
   finalizeSchedRun,
-  abandonOpenOrganizeRuns,
-  completeOrganizeRun,
+  abandonOpenSchedRuns,
+  completeSchedRun,
 } from './run-log.js';
 export { recordSchedRun } from './record.js';
 export { createSchedRunner } from './runner.js';
